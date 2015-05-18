@@ -1,0 +1,197 @@
+---
+title: Getting and Cleaning Data Project
+output: html_document
+---
+
+*Stanley Ing*
+
+*Codebook for Getting and Cleaning Data Project*
+ 
+This codebook contains the following information:
+
+1. Description of data source and variables.
+2. Full procedure of data cleaning process (transformations and manipulations) from **raw dataset** to **tidy dataset**.
+
+###Data Source and Variables
+
+The full description of the data used for this project can be found at [The UCI Machine Learning Repository](http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones)
+
+The source data for this project can be found [here](https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip)
+
+The experiments have been carried out with a group of 30 volunteers within an age bracket of 19-48 years. Each person performed six activities (WALKING, WALKING_UPSTAIRS, WALKING_DOWNSTAIRS, SITTING, STANDING, LAYING) wearing a smartphone (Samsung Galaxy S II) on the waist. Using its embedded accelerometer and gyroscope, we captured 3-axial linear acceleration and 3-axial angular velocity at a constant rate of 50Hz. The experiments have been video-recorded to label the data manually. The obtained dataset has been randomly partitioned into two sets, where 70% of the volunteers was selected for generating the training data and 30% the test data. 
+
+The sensor signals (accelerometer and gyroscope) were pre-processed by applying noise filters and then sampled in fixed-width sliding windows of 2.56 sec and 50% overlap (128 readings/window). The sensor acceleration signal, which has gravitational and body motion components, was separated using a Butterworth low-pass filter into body acceleration and gravity. The gravitational force is assumed to have only low frequency components, therefore a filter with 0.3 Hz cutoff frequency was used. From each window, a vector of features was obtained by calculating variables from the time and frequency domain. See 'features_info.txt' for more details. 
+
+For each record, the following is provided:
+
+- Triaxial acceleration from the accelerometer (total acceleration) and the estimated body acceleration.
+- Triaxial Angular velocity from the gyroscope. 
+- A 561-feature vector with time and frequency domain variables. 
+- Its activity label. 
+- An identifier of the subject who carried out the experiment.
+
+###Data Cleaning
+
+The following data cleaning procedures were employed to meet the project objectives. 
+
+**Libraries**
+```{r}
+library(dplyr)
+```
+
+**Merge the training and the test sets to create one data set.**
+
+In order to merge the training and the test sets into one data set, the sets were read into R with the following R code:
+
+```{r}
+#Train folder
+
+features <- read.table('./features.txt', header=FALSE) 
+activitylabel <- read.table('./activity_labels.txt', header=FALSE) 
+subjecttrain <- read.table('./train/subject_train.txt', header=FALSE) 
+xtrain <- read.table('./train/X_train.txt', header=FALSE) 
+ytrain <- read.table('./train/y_train.txt', header=FALSE) 
+
+#Test folder
+
+subjecttest <- read.table('./test/subject_test.txt', header=FALSE) 
+xtest <- read.table('./test/x_test.txt', header=FALSE) 
+ytest <- read.table('./test/y_test.txt', header=FALSE) 
+```
+
+Next, as the data frames do not have column names, we will need to assign them with the following code:
+
+```{r}
+#Assigning column names to training data
+
+colnames(activitylabel) <- c('activityID', 'activitylabel') 
+colnames(subjecttrain) <- "subjectID"
+colnames(xtrain) <- features[,2]
+colnames(ytrain) <- "activityID"
+
+#Assigning column names to test data 
+
+colnames(subjecttest) <- "subjectID"
+colnames(xtest) <- features[,2]
+colnames(ytest) <- "activityID"
+```
+
+We first need to merge the training data into one dataset and then the test data into one dataset.
+
+```{r}
+#training data
+
+trainingdata <- cbind(subjecttrain, ytrain, xtrain)
+
+#test data
+
+testdata <- cbind(subjecttest, ytest, xtest)
+```
+
+The training and test data can now be merged into one dataset.
+
+```{r}
+finaldata <- rbind(trainingdata, testdata)
+```
+
+**Extract only the measurements on the mean and standard deviation for each measurement.** 
+
+We will first extract the column names and place the names into a vector. Then the column names need to be examined in order to see how they are structured. 
+
+```{r}
+colNames <- colnames(finaldata)
+```
+
+A logical vector is then created for TRUE values for mean() and stddev () columns; the remaining columns will be FALSE.
+
+```{r}
+logicalVector = (grepl("activity..",colNames) | 
+                         grepl("subject..",colNames) | 
+                         grepl("-mean..",colNames) & 
+                         !grepl("-meanFreq..",colNames) & 
+                         !grepl("mean..-",colNames) | 
+                         grepl("-std..",colNames) & 
+                         !grepl("-std()..-",colNames))
+```
+
+Subset finaldata dataframe to include only desired variables based on logical vector.
+
+```{r}
+finaldata = finaldata[logicalVector==TRUE]
+```
+
+**Use descriptive activity names to name the activities in the data set.**
+
+Merging the activitylabel dataframe with the finaldata dataframe by activityID will link the numeric values and activity labels. 
+
+```{r}
+finaldata <- merge(finaldata, activitylabel, by='activityID');
+```
+
+This code updates our colNames vector. 
+
+```{r}
+colNames <- colnames(finaldata)
+```
+
+**Appropriately label the data set with descriptive activity names.**
+
+The following code cleans up the dataset using the gsub function. 
+
+```{r}
+for (i in 1:length(colNames)) 
+{
+        colNames[i] = gsub("\\()","",colNames[i])
+        colNames[i] = gsub("-std$","StdDev",colNames[i])
+        colNames[i] = gsub("-mean","Mean",colNames[i])
+        colNames[i] = gsub("^(t)","time",colNames[i])
+        colNames[i] = gsub("^(f)","freq",colNames[i])
+        colNames[i] = gsub("([Gg]ravity)","Gravity",colNames[i])
+        colNames[i] = gsub("([Bb]ody[Bb]ody|[Bb]ody)","Body",colNames[i])
+        colNames[i] = gsub("[Gg]yro","Gyro",colNames[i])
+        colNames[i] = gsub("AccMag","AccMagnitude",colNames[i])
+        colNames[i] = gsub("([Bb]odyaccjerkmag)","BodyAccJerkMagnitude",colNames[i])
+        colNames[i] = gsub("JerkMag","JerkMagnitude",colNames[i])
+        colNames[i] = gsub("GyroMag","GyroMagnitude",colNames[i])
+}
+```
+
+Reassign the new descriptive column names to the finaldata dataframe.
+
+```{r}
+colnames(finaldata) <- colNames
+```
+
+**Creates a second, independent tidy data set with the average of each variable for each activity and each subject.**
+
+In order to do this, the activity label must be taken out first.
+
+```{r}
+finaldata <- finaldata[,names(finaldata) != 'activitylabel']
+```
+
+To summarize the dataframe to include just the mean of each variable for each activity and each subject, the following code is employed.
+
+```{r}
+tidydata <- aggregate(finaldata[,names(finaldata) != c('activityID', 'subjectID')], 
+                      by=list(activityID=finaldata$activityID, subjectID=finaldata$subjectID), mean)
+```
+
+To finish, the new tidydata dataframe is merged with the activity label by activity ID, arranged by subjectID and activityID, and ordered by columns. 
+
+```{r}
+tidydata <- merge(tidydata, activitylabel, by='activityID')
+tidydata <- arrange(tidydata, subjectID, activityID)
+tidydata <- tidydata %>% select(subjectID, activityID, activitylabel, timeBodyAccMagnitudeMean, timeBodyAccMagnitudeStdDev, 
+                                timeGravityAccMagnitudeMean, timeGravityAccMagnitudeStdDev, timeBodyAccJerkMagnitudeMean, 
+                                timeBodyAccJerkMagnitudeStdDev, timeBodyGyroMagnitudeMean, timeBodyGyroMagnitudeStdDev, 
+                                timeBodyGyroJerkMagnitudeMean, timeBodyGyroJerkMagnitudeStdDev, freqBodyAccMagnitudeMean, freqBodyAccMagnitudeStdDev,
+                                freqBodyAccJerkMagnitudeMean, freqBodyAccJerkMagnitudeStdDev, freqBodyGyroMagnitudeMean, freqBodyGyroMagnitudeStdDev,
+                                freqBodyGyroJerkMagnitudeMean, freqBodyGyroJerkMagnitudeStdDev)
+```
+
+Lastly, to export the tidydataset, the following code is used.
+
+```{r}
+write.table(tidydata, './tidyData.txt',row.names=FALSE,sep='\t')
+```
